@@ -32,6 +32,7 @@
 #include <libfreenect2/config.h>
 
 #include <stdlib.h>
+#include <string>
 
 namespace libfreenect2
 {
@@ -86,7 +87,7 @@ protected:
 class LIBFREENECT2_API CpuPacketPipeline : public PacketPipeline
 {
 public:
-  CpuPacketPipeline();
+  CpuPacketPipeline(const std::string &rgbProcessorType = "");
   virtual ~CpuPacketPipeline();
 };
 
@@ -98,7 +99,7 @@ protected:
   void *parent_opengl_context_;
   bool debug_;
 public:
-  OpenGLPacketPipeline(void *parent_opengl_context = 0, bool debug = false);
+  OpenGLPacketPipeline(const std::string &rgbProcessorType="", void *parent_opengl_context = 0, bool debug = false);
   virtual ~OpenGLPacketPipeline();
 };
 #endif // LIBFREENECT2_WITH_OPENGL_SUPPORT
@@ -110,7 +111,7 @@ class LIBFREENECT2_API OpenCLPacketPipeline : public PacketPipeline
 protected:
   const int deviceId;
 public:
-  OpenCLPacketPipeline(const int deviceId = -1);
+  OpenCLPacketPipeline(const std::string &rgbProcessorType="", const int deviceId = -1);
   virtual ~OpenCLPacketPipeline();
 };
 
@@ -136,7 +137,7 @@ class LIBFREENECT2_API CudaPacketPipeline : public PacketPipeline
 protected:
   const int deviceId;
 public:
-  CudaPacketPipeline(const int deviceId = -1);
+  CudaPacketPipeline(const std::string &rgbProcessorType="", const int deviceId = -1);
   virtual ~CudaPacketPipeline();
 };
 

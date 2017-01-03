@@ -54,11 +54,91 @@ static RgbPacketProcessor *getDefaultRgbPacketProcessor()
   else
     delete tegra;
   return new TurboJpegRgbPacketProcessor();
+#elif defined(LIBFREENECT2_WITH_MEDIASDK_SUPPORT)
+  RgbPacketProcessor *mediasdk = new MediaSdkRgbPacketProcessor();
+  if (mediasdk->good())
+    return mediasdk;
+  else
+    delete mediasdk;
+  return new TurboJpegRgbPacketProcessor();
 #elif defined(LIBFREENECT2_WITH_TURBOJPEG_SUPPORT)
   return new TurboJpegRgbPacketProcessor();
 #else
   #error No jpeg decoder is enabled
 #endif
+}
+
+// this function allows the caller to specify what type of RGB processor they
+// want
+static RgbPacketProcessor *getSpecificRgbPacketProcessor(const std::string &rgbProcessor)
+{
+  printf("Trying to get specific RGB processor: %s\n", rgbProcessor);
+  std::string lowercaseProcessor;
+  std::transform(rgbProcessor.begin(), rgbProcessor.end(), lowercaseProcessor.begin(), ::tolower);
+  if(rgbProcessor.compare("vt") == 0)
+  {
+#if defined(LIBFREENECT2_WITH_VT_SUPPORT)
+    return new VTRgbPacketProcessor();
+#else
+	// they have requested VT but this isn't supported so we have to fall back to default
+	return getDefaultRgbPacketProcessor();
+#endif
+  }
+  else if(rgbProcessor.compare("vaapi") == 0)
+  {
+#if defined(LIBFREENECT2_WITH_VAAPI_SUPPORT)
+	RgbPacketProcessor *vaapi = new VaapiRgbPacketProcessor();
+	if (vaapi->good())
+		return vaapi;
+	else
+		delete vaapi;
+	return new TurboJpegRgbPacketProcessor();
+#else
+	// they have requested VAAPI but this isn't supported so we have to fall back to default
+	return getDefaultRgbPacketProcessor();
+#endif
+  }
+  else if(rgbProcessor.compare("tegra") == 0)
+  {
+#if defined(LIBFREENECT2_WITH_TEGRAJPEG_SUPPORT)
+	  RgbPacketProcessor *tegra = new TegraJpegRgbPacketProcessor();
+	  if (tegra->good())
+		return tegra;
+	  else
+		delete tegra;
+	  return new TurboJpegRgbPacketProcessor();
+#else
+	// they have requested TEGRA but this isn't supported so we have to fall back to default
+	return getDefaultRgbPacketProcessor();
+#endif
+  }
+  else if(rgbProcessor.compare("mediasdk") == 0)
+  {
+#if defined(LIBFREENECT2_WITH_MEDIASDK_SUPPORT)
+  RgbPacketProcessor *mediasdk = new MediaSdkRgbPacketProcessor();
+  if (mediasdk->good())
+    return mediasdk;
+  else
+    delete mediasdk;
+  return new TurboJpegRgbPacketProcessor();
+#else
+	// they have requested MEDIASDK but this isn't supported so we have to fall back to default
+	return getDefaultRgbPacketProcessor();
+#endif
+  }
+  else if(rgbProcessor.compare("turbo") == 0)
+  {
+#if defined(LIBFREENECT2_WITH_TURBOJPEG_SUPPORT)
+  return new TurboJpegRgbPacketProcessor();
+#else
+	// they have requested MEDIASDK but this isn't supported so we have to fall back to default
+	return getDefaultRgbPacketProcessor();
+#endif
+  }
+  else
+  {
+	return getDefaultRgbPacketProcessor();
+  }
 }
 
 class PacketPipelineComponents
@@ -128,17 +208,23 @@ DepthPacketProcessor *PacketPipeline::getDepthPacketProcessor() const
   return comp_->depth_processor_;
 }
 
-CpuPacketPipeline::CpuPacketPipeline()
+CpuPacketPipeline::CpuPacketPipeline(const std::string &rgbProcessorType)
 {
-  comp_->initialize(getDefaultRgbPacketProcessor(), new CpuDepthPacketProcessor());
+  if(rgbProcessorType.empty())
+    comp_->initialize(getDefaultRgbPacketProcessor(), new CpuDepthPacketProcessor());
+  else
+	comp_->initialize(getSpecificRgbPacketProcessor(rgbProcessorType), new CpuDepthPacketProcessor());
 }
 
 CpuPacketPipeline::~CpuPacketPipeline() { }
 
 #ifdef LIBFREENECT2_WITH_OPENGL_SUPPORT
-OpenGLPacketPipeline::OpenGLPacketPipeline(void *parent_opengl_context, bool debug) : parent_opengl_context_(parent_opengl_context), debug_(debug)
+OpenGLPacketPipeline::OpenGLPacketPipeline(const std::string &rgbProcessorType, void *parent_opengl_context, bool debug) : parent_opengl_context_(parent_opengl_context), debug_(debug)
 {
-  comp_->initialize(getDefaultRgbPacketProcessor(), new OpenGLDepthPacketProcessor(parent_opengl_context_, debug_));
+  if(rgbProcessorType.empty())
+    comp_->initialize(getDefaultRgbPacketProcessor(), new OpenGLDepthPacketProcessor(parent_opengl_context_, debug_));
+  else
+	comp_->initialize(getSpecificRgbPacketProcessor(rgbProcessorType), new OpenGLDepthPacketProcessor(parent_opengl_context_, debug_));
 }
 
 OpenGLPacketPipeline::~OpenGLPacketPipeline() { }
@@ -146,9 +232,12 @@ OpenGLPacketPipeline::~OpenGLPacketPipeline() { }
 
 
 #ifdef LIBFREENECT2_WITH_OPENCL_SUPPORT
-OpenCLPacketPipeline::OpenCLPacketPipeline(const int deviceId) : deviceId(deviceId)
+OpenCLPacketPipeline::OpenCLPacketPipeline(const std::string &rgbProcessorType, const int deviceId) : deviceId(deviceId)
 {
-  comp_->initialize(getDefaultRgbPacketProcessor(), new OpenCLDepthPacketProcessor(deviceId));
+  if(rgbProcessorType.empty())
+    comp_->initialize(getDefaultRgbPacketProcessor(), new OpenCLDepthPacketProcessor(deviceId));
+  else
+    comp_->initialize(getSpecificRgbPacketProcessor(rgbProcessorType), new OpenCLDepthPacketProcessor(deviceId));
 }
 
 OpenCLPacketPipeline::~OpenCLPacketPipeline() { }
@@ -163,10 +252,15 @@ OpenCLKdePacketPipeline::~OpenCLKdePacketPipeline() { }
 #endif // LIBFREENECT2_WITH_OPENCL_SUPPORT
 
 #ifdef LIBFREENECT2_WITH_CUDA_SUPPORT
-CudaPacketPipeline::CudaPacketPipeline(const int deviceId) : deviceId(deviceId)
+CudaPacketPipeline::CudaPacketPipeline(const std::string &rgbProcessorType, const int deviceId) : deviceId(deviceId)
 {
-  comp_->initialize(getDefaultRgbPacketProcessor(), new CudaDepthPacketProcessor(deviceId));
+  if(rgbProcessorType.empty())
+    comp_->initialize(getDefaultRgbPacketProcessor(), new CudaDepthPacketProcessor(deviceId));
+  else
+    comp_->initialize(getSpecificRgbPacketProcessor(rgbProcessorType), new CudaDepthPacketProcessor(deviceId));
 }
+
+CudaPacketPipeline::~CudaPacketPipeline() { }
 
 CudaKdePacketPipeline::~CudaKdePacketPipeline() { }
 
@@ -174,8 +268,6 @@ CudaKdePacketPipeline::CudaKdePacketPipeline(const int deviceId) : deviceId(devi
 {
   comp_->initialize(getDefaultRgbPacketProcessor(), new CudaKdeDepthPacketProcessor(deviceId));
 }
-
-CudaPacketPipeline::~CudaPacketPipeline() { }
 #endif // LIBFREENECT2_WITH_CUDA_SUPPORT
 
 DumpPacketPipeline::DumpPacketPipeline()
